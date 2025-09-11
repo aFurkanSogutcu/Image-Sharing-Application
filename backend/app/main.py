@@ -1,10 +1,13 @@
-# app/main.py
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import text                    # <-- EKLE
-from core.database import get_db           # yolun sende farklıysa ona göre bırak
+from sqlalchemy import text    
+from core.database import get_db, engine, Base
+from routers import users, auth
+import models.users
 
 app = FastAPI()
+
+Base.metadata.create_all(bind=engine)
 
 @app.get("/ping-db")
 def ping_db(db: Session = Depends(get_db)):
@@ -14,3 +17,6 @@ def ping_db(db: Session = Depends(get_db)):
         return {"status": "ok", "message": "DB bağlantısı başarılı!"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+app.include_router(auth.router)
+app.include_router(users.router)
