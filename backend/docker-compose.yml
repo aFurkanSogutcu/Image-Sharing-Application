@@ -8,7 +8,7 @@ services:
       MYSQL_USER: imageuser
       MYSQL_PASSWORD: imagepass
     ports:
-      - "3309:3306"
+      - "3310:3306"
     command:
       - "mysqld"
       - "--default-authentication-plugin=mysql_native_password"
@@ -29,6 +29,7 @@ services:
       - db
     volumes:
       - .:/app
+      - ./data:/data # MEDIA_ROOT=/data ile eşleşme
 
 volumes:
   db_data:

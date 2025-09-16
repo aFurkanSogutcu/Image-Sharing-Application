@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from models.users import Users
+from models.models import Users
 from passlib.context import CryptContext
 from core.database import get_db
 from starlette import status
@@ -34,10 +34,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-
 db_dependency = Annotated[Session, Depends(get_db)]
-
-
 
 def authenticate_user(username: str, password: str, db):
     user = db.query(Users).filter(Users.username == username).first()
@@ -88,6 +85,15 @@ async def create_user(db: db_dependency,
 
     db.add(create_user_model)
     db.commit()
+
+# { örnek copy-paste
+#   "username": "afurkan",
+#   "email": "furkan@gmail.com",
+#   "first_name": "ahmet",
+#   "last_name": "furkan",
+#   "password": "1234",
+#   "role": "admin"
+# }
 
 @router.post("/token", response_model= Token)
 async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
