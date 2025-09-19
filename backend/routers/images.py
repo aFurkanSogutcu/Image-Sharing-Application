@@ -44,6 +44,72 @@ async def read_all(user: user_dependency, db: db_dependency):
                             detail='Authentication Failed')
     return db.query(Images).filter(Images.owner_id == user.get('id')).all()
 
+
+@router.get("/me", status_code=status.HTTP_200_OK)
+def my_profile(
+    user: user_dependency,
+    db: db_dependency,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication Failed")
+
+    # Kullanıcı bilgisi
+    me = db.query(Users).filter(Users.id == user.get("id")).first()
+    if not me:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Toplam resim sayısı
+    total = (
+        db.query(func.count(Images.id))
+          .filter(Images.owner_id == me.id)
+          .scalar()
+    )
+
+    # Benim resimlerim (sayfalı)
+    rows = (
+        db.query(Images)
+          .filter(Images.owner_id == me.id)
+          .order_by(Images.created_at.desc(), Images.id.desc())
+          .limit(limit).offset(offset)
+          .all()
+    )
+
+    items = [{
+        "id": r.id,
+        "url": f"/media/{r.stored_filename}",
+        "description": r.description,
+        "created_at": r.created_at,
+        "content_type": r.content_type,
+        "size_bytes": getattr(r, "size_bytes", None),
+    } for r in rows]
+
+    returned = len(items)
+    next_offset = offset + returned if (offset + returned) < total else None
+
+    return {
+        "owner": {
+            "id": me.id,
+            "username": me.username,
+            "first_name": me.first_name,
+            "last_name": me.last_name,
+            "email": me.email,
+        },
+        "items": items,
+        "page": {
+            "limit": limit,
+            "offset": offset,
+            "returned": returned,
+            "total": total,
+            "has_more": next_offset is not None,
+            "next_offset": next_offset,
+        },
+    }
+
+
+
+
 @router.get("/{image_id}", status_code=status.HTTP_200_OK)
 async def read_image(user: user_dependency, db: db_dependency, image_id: int = Path(gt=0)):
     if user is None:
@@ -53,6 +119,41 @@ async def read_image(user: user_dependency, db: db_dependency, image_id: int = P
     if image_model is not None:
         return image_model
     raise HTTPException(status_code=404, detail='Image not found')
+
+@router.delete("/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_image(
+    user: user_dependency,
+    db: db_dependency,
+    image_id: int = Path(gt=0),
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication Failed")
+
+    img = (
+        db.query(Images)
+          .filter(Images.id == image_id)
+          .first()
+    )
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    if img.owner_id != user.get("id"):
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    # Dosyayı diskte sil (besteffort)
+    try:
+        full = (PPath(settings.MEDIA_ROOT) / PPath(img.stored_filename)).resolve()
+        if full.is_file():
+            full.unlink(missing_ok=True)
+    except Exception:
+        # dosya yoksa/yetki yoksa projeyi düşürme
+        pass
+
+    # Kaydı sil
+    db.delete(img)
+    db.commit()
+    # 204 No Content
+
 
 @router.post("/image", status_code=status.HTTP_201_CREATED)
 async def add_image(user: user_dependency, 
@@ -132,67 +233,6 @@ def public_feed(db: db_dependency,
         }
     }
 
-@router.get("/me", status_code=status.HTTP_200_OK)
-def my_profile(
-    user: user_dependency,
-    db: db_dependency,
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-):
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication Failed")
-
-    # Kullanıcı bilgisi
-    me = db.query(Users).filter(Users.id == user.get("id")).first()
-    if not me:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Toplam resim sayısı
-    total = (
-        db.query(func.count(Images.id))
-          .filter(Images.owner_id == me.id)
-          .scalar()
-    )
-
-    # Benim resimlerim (sayfalı)
-    rows = (
-        db.query(Images)
-          .filter(Images.owner_id == me.id)
-          .order_by(Images.created_at.desc(), Images.id.desc())
-          .limit(limit).offset(offset)
-          .all()
-    )
-
-    items = [{
-        "id": r.id,
-        "url": f"/media/{r.stored_filename}",
-        "description": r.description,
-        "created_at": r.created_at,
-        "content_type": r.content_type,
-        "size_bytes": getattr(r, "size_bytes", None),
-    } for r in rows]
-
-    returned = len(items)
-    next_offset = offset + returned if (offset + returned) < total else None
-
-    return {
-        "owner": {
-            "id": me.id,
-            "username": me.username,
-            "first_name": me.first_name,
-            "last_name": me.last_name,
-            "email": me.email,
-        },
-        "items": items,
-        "page": {
-            "limit": limit,
-            "offset": offset,
-            "returned": returned,
-            "total": total,
-            "has_more": next_offset is not None,
-            "next_offset": next_offset,
-        },
-    }
 
 
 # en üstte (gerekliyse) import:

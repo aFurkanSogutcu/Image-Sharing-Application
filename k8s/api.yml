@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: imageapp
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: api } }
+  template:
+    metadata: { labels: { app: api } }
+    spec:
+      containers:
+        - name: api
+          image: myapp-backend:v1   # ← eğer local yüklüyorsan: minikube image load myapp-backend:v1
+          ports: [{ containerPort: 8000 }]
+          env:
+            - name: MEDIA_ROOT
+              valueFrom: { configMapKeyRef: { name: app-config, key: MEDIA_ROOT } }
+            # ÖRN: SQLAlchemy URL (kendi projenin değişkenine göre)
+            - name: DATABASE_URL
+              value: "mysql+pymysql://imageuser:imagepass@db:3306/imageappdatabase"
+          volumeMounts:
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: imageapp
+spec:
+  selector: { app: api }
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP

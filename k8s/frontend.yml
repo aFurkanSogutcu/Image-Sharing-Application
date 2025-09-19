@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: imageapp
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: frontend } }
+  template:
+    metadata: { labels: { app: frontend } }
+    spec:
+      containers:
+        - name: web
+          image: myapp-frontend:v1   # ← minikube image load myapp-frontend:v1
+          ports: [{ containerPort: 5173 }]
+          env:
+            - name: VITE_API_BASE_URL
+              valueFrom: { configMapKeyRef: { name: app-config, key: VITE_API_BASE_URL } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: imageapp
+spec:
+  selector: { app: frontend }
+  ports:
+    - name: http
+      port: 80        # Ingress için 80'e mapliyoruz
+      targetPort: 5173
+  type: ClusterIP
