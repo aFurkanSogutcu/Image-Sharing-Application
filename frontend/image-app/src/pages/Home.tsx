@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { useNavigate } from "react-router-dom";
 
+import Grid from "@mui/material/Grid";
+import {
+    Container, Typography, Card, CardActionArea, CardContent,
+    Box, Stack, Button, Alert, CircularProgress, Skeleton
+} from "@mui/material";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
+
 type FeedItem = {
     id: number;
     url: string;               // "/media/..."
@@ -53,15 +60,14 @@ export default function Home() {
     // İlk yük
     useEffect(() => { load(true); /* eslint-disable-next-line */ }, []);
 
-    // Upload sonrası feed’i sıfırdan tazele
+    // Upload sonrası feed’i sıfırla
     useEffect(() => {
         function onUploaded() { setNextOffset(0); load(true); }
         window.addEventListener("image:uploaded", onUploaded as EventListener);
         return () => window.removeEventListener("image:uploaded", onUploaded as EventListener);
-        // eslint-disable-next-line
     }, []);
 
-    // silme
+    // Silme olayı
     useEffect(() => {
         function onDeleted(e: Event) {
             const ce = e as CustomEvent<{ id: number }>;
@@ -74,64 +80,121 @@ export default function Home() {
         return () => window.removeEventListener("image:deleted", onDeleted as EventListener);
     }, []);
 
+    const isInitialLoading = loading && items.length === 0;
+
     return (
-        <div style={{ padding: 16 }}>
-            <h2 style={{ marginBottom: 12 }}>Anasayfa</h2>
+        <Container maxWidth="lg" sx={{ py: 3 }}>
+            <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
+                Anasayfa
+            </Typography>
 
             {error && (
-                <div style={{ color: "crimson", marginBottom: 12 }}>
-                    {error} <button onClick={() => load(true)}>Tekrar dene</button>
-                </div>
+                <Alert
+                    severity="error"
+                    sx={{ mb: 2 }}
+                    action={
+                        <Button color="inherit" size="small" onClick={() => load(true)}>
+                            Tekrar dene
+                        </Button>
+                    }
+                >
+                    {error}
+                </Alert>
             )}
 
-            {items.length === 0 && !loading && !error && (
-                <div style={{ opacity: 0.7 }}>Henüz resim yok.</div>
+            {!isInitialLoading && items.length === 0 && !error && (
+                <Stack
+                    alignItems="center"
+                    spacing={1.5}
+                    sx={{ color: "text.secondary", py: 6 }}
+                >
+                    <ImageOutlinedIcon />
+                    <Typography>Henüz resim yok.</Typography>
+                </Stack>
             )}
 
-            <div
-                style={{
-                    display: "grid",
-                    gap: 12,
-                    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                }}
-            >
-                {items.map((it) => (
-                    <div key={it.id}
-                        style={{ border: "1px solid #eee", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-                        <div style={{ position: "relative", aspectRatio: "4/3", background: "#f4f4f4" }}
-                            onClick={() => nav(`/images/${it.id}`)}>
-                            <img
-                                src={it.url}
-                                alt={it.description}
-                                style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
-                                loading="lazy"
-                            />
-                        </div>
-                        <div style={{ padding: 10, display: "grid", gap: 6 }}>
-                            <div style={{ fontSize: 14 }}>{it.description || <span style={{ opacity: 0.6 }}>Açıklama yok</span>}</div>
-                            {it.owner && (
-                                <div style={{ fontSize: 13, opacity: 0.8 }}>
-                                    <span>Yükleyen: </span>
-                                    <a
-                                        href="#"
-                                        onClick={(e) => { e.preventDefault(); nav(`/user/${it.owner!.id}`); }}
-                                        style={{ textDecoration: "none" }}
-                                    >
-                                        @{it.owner.username}
-                                    </a>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            {/* Grid */}
+            <Grid container spacing={2}>
+                {isInitialLoading
+                    ? Array.from({ length: 8 }).map((_, i) => (
+                        <Grid key={i} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                            <Card>
+                                <Skeleton variant="rectangular" sx={{ aspectRatio: "4 / 3" }} />
+                                <CardContent>
+                                    <Skeleton width="80%" />
+                                    <Skeleton width="40%" />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    ))
+                    : items.map((it) => (
+                        <Grid key={it.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                            <Card sx={{ height: "100%" }}>
+                                <CardActionArea onClick={() => nav(`/images/${it.id}`)}>
+                                    <Box
+                                        component="img"
+                                        src={it.url}
+                                        alt={it.description || "image"}
+                                        loading="lazy"
+                                        sx={{
+                                            width: "100%",
+                                            aspectRatio: "4 / 3",
+                                            objectFit: "cover",
+                                            display: "block",
+                                            bgcolor: "action.hover",
+                                        }}
+                                    />
+                                    <CardContent>
+                                        <Stack spacing={0.5}>
+                                            <Typography
+                                                variant="subtitle1"
+                                                noWrap
+                                                color={it.description ? "text.primary" : "text.secondary"}
+                                            >
+                                                {it.description || "Açıklama yok"}
+                                            </Typography>
 
-            <div style={{ marginTop: 16 }}>
-                {nextOffset !== null && !loading && (
-                    <button onClick={() => load(false)} style={{ padding: "8px 12px" }}>Daha Fazla</button>
+                                            {it.owner && (
+                                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        Yükleyen:
+                                                    </Typography>
+                                                    <Button
+                                                        size="small"
+                                                        variant="text"
+                                                        sx={{ p: 0, minWidth: 0, fontSize: 12 }}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation(); // Kartın tıklamasını tetiklemesin
+                                                            nav(`/user/${it.owner!.id}`);
+                                                        }}
+                                                    >
+                                                        @{it.owner.username}
+                                                    </Button>
+                                                </Stack>
+                                            )}
+                                        </Stack>
+                                    </CardContent>
+                                </CardActionArea>
+                            </Card>
+                        </Grid>
+                    ))}
+            </Grid>
+
+            {/* Daha Fazla / Yükleniyor */}
+            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
+                {nextOffset !== null && !loading && items.length > 0 && (
+                    <Button onClick={() => load(false)} variant="outlined">
+                        Daha Fazla
+                    </Button>
                 )}
-                {loading && <span style={{ marginLeft: 8, opacity: 0.7 }}>Yükleniyor…</span>}
-            </div>
-        </div>
+                {loading && items.length > 0 && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <CircularProgress size={18} />
+                        <Typography variant="body2" color="text.secondary">Yükleniyor…</Typography>
+                    </Stack>
+                )}
+            </Stack>
+        </Container>
     );
 }

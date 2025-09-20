@@ -1,7 +1,20 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useState } from "react";
 import UploadModal from "./UploadModal";
+
+import {
+    AppBar,
+    Toolbar,
+    Typography,
+    Button,
+    Stack,
+    Box,
+    CircularProgress,
+} from "@mui/material";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import LogoutIcon from "@mui/icons-material/Logout";
 
 export default function Header() {
     const { user, loading, logout } = useAuth();
@@ -10,41 +23,79 @@ export default function Header() {
 
     return (
         <>
-            <header style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "10px 14px", borderBottom: "1px solid #eee", position: "sticky", top: 0, background: "#fff", zIndex: 10
-            }}>
-                <Link to="/" style={{ textDecoration: "none", fontWeight: 700 }}>ImageApp</Link>
+            <AppBar
+                position="sticky"
+                color="default"
+                elevation={0}
+                sx={{ borderBottom: 1, borderColor: "divider" }}
+            >
+                <Toolbar sx={{ gap: 1 }}>
+                    {/* Logo / Brand */}
+                    <Typography
+                        variant="h6"
+                        component={RouterLink}
+                        to="/"
+                        sx={{
+                            fontWeight: 800,
+                            textDecoration: "none",
+                            color: "text.primary",
+                        }}
+                    >
+                        ImageApp
+                    </Typography>
 
-                {loading ? (
-                    <span style={{ fontSize: 12, opacity: 0.7 }}>yükleniyor…</span>
-                ) : user ? (
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        <button
-                            onClick={() => setOpen(true)}
-                            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", background: "#fafafa", cursor: "pointer" }}
-                        >
-                            Yükle
-                        </button>
-                        <Link to="/profile" style={{ textDecoration: "none" }}>
-                            @{user.username}
-                        </Link>
-                        <button
-                            onClick={() => { logout(); nav("/login"); }}
-                            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}
-                        >
-                            Çıkış
-                        </button>
-                    </div>
-                ) : (
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <Link to="/login">Giriş</Link>
-                        <Link to="/register">Kayıt</Link>
-                    </div>
-                )}
-            </header>
+                    <Box sx={{ flexGrow: 1 }} />
 
-            {/* Upload modal */}
+                    {/* Right side */}
+                    {loading ? (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                            <CircularProgress size={18} />
+                            <Typography variant="caption" color="text.secondary">
+                                Yükleniyor…
+                            </Typography>
+                        </Stack>
+                    ) : user ? (
+                        <Stack direction="row" spacing={1} alignItems="center">
+                            <Button
+                                onClick={() => setOpen(true)}
+                                startIcon={<CloudUploadIcon />}
+                                variant="contained"
+                            >
+                                Yükle
+                            </Button>
+                            <Button
+                                component={RouterLink}
+                                to="/profile"
+                                startIcon={<AccountCircleIcon />}
+                                variant="text"
+                            >
+                                @{user.username}
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    logout();
+                                    nav("/login");
+                                }}
+                                variant="outlined"
+                                startIcon={<LogoutIcon />}
+                            >
+                                Çıkış
+                            </Button>
+                        </Stack>
+                    ) : (
+                        <Stack direction="row" spacing={1}>
+                            <Button component={RouterLink} to="/login" variant="contained">
+                                Giriş
+                            </Button>
+                            <Button component={RouterLink} to="/register" variant="outlined">
+                                Kayıt
+                            </Button>
+                        </Stack>
+                    )}
+                </Toolbar>
+            </AppBar>
+
+            {/* Upload modal (mevcut bileşenin değişmeden kullanımı) */}
             <UploadModal open={open} onClose={() => setOpen(false)} />
         </>
     );

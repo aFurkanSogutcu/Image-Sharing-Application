@@ -7,7 +7,7 @@ import Home from "./pages/Home";
 import MyProfile from "./pages/MyProfile";
 import UserProfile from "./pages/UserProfile";
 
-function Protected({ children }: { children: JSX.Element }) {
+function Protected({ children }: { children: React.JSX.Element }) {
   const { token, loading } = useAuth();
   if (loading) return <div style={{ padding: 16 }}>Yükleniyor…</div>;
   return token ? children : <Navigate to="/login" replace />;

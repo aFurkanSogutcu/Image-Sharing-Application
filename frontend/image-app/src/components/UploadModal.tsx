@@ -1,7 +1,21 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+
+import {
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    TextField,
+    Button,
+    Stack,
+    Alert,
+    LinearProgress,
+    Typography,
+    Box,
+} from "@mui/material";
 
 type Props = {
     open: boolean;
@@ -15,7 +29,7 @@ export default function UploadModal({ open, onClose }: Props) {
     const [submitting, setSub] = useState(false);
     const [error, setErr] = useState<string | null>(null);
 
-    if (!open) return null;
+    const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file]);
 
     function onFile(e: ChangeEvent<HTMLInputElement>) {
         setErr(null);
@@ -36,13 +50,11 @@ export default function UploadModal({ open, onClose }: Props) {
             const form = new FormData();
             form.append("description", desc);
             form.append("file", file);
-            // DİKKAT: multipart'ta Content-Type başlığını elle set etme; tarayıcı boundary'yi ekler.
             await apiFetch<void>("/image", { method: "POST", body: form }, token);
-            // Başarılı → feed'e haber ver
             window.dispatchEvent(new CustomEvent("image:uploaded"));
             onClose();
-            // formu sıfırla
-            setFile(null); setDesc("");
+            setFile(null);
+            setDesc("");
         } catch (e: any) {
             setErr(e?.message || "Yükleme başarısız");
         } finally {
@@ -51,36 +63,54 @@ export default function UploadModal({ open, onClose }: Props) {
     }
 
     return (
-        <div
-            style={{
-                position: "fixed", inset: 0, background: "rgba(0,0,0,.4)",
-                display: "grid", placeItems: "center", zIndex: 50
-            }}
-            onClick={onClose}
-        >
-            <div
-                style={{ background: "#fff", padding: 16, borderRadius: 10, width: "min(92vw, 420px)" }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h3 style={{ marginTop: 0 }}>Görsel Yükle</h3>
-                <form onSubmit={onSubmit} style={{ display: "grid", gap: 8 }}>
-                    <input
-                        type="file" accept="image/*" onChange={onFile}
-                    />
-                    <input
-                        placeholder="Açıklama (opsiyonel)"
-                        value={desc}
-                        onChange={(e) => setDesc(e.target.value)}
-                    />
-                    {error && <div style={{ color: "crimson", fontSize: 13 }}>{error}</div>}
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                        <button type="button" onClick={onClose} disabled={submitting}>Vazgeç</button>
-                        <button type="submit" disabled={submitting || !file}>
-                            {submitting ? "Yükleniyor…" : "Yükle"}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+        <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="xs">
+            <form onSubmit={onSubmit}>
+                <DialogTitle>Görsel Yükle</DialogTitle>
+
+                {submitting && <LinearProgress />}
+
+                <DialogContent>
+                    <Stack spacing={2}>
+                        <Button component="label" variant="outlined">
+                            {file ? "Başka dosya seç" : "Dosya seç"}
+                            <input type="file" accept="image/*" hidden onChange={onFile} />
+                        </Button>
+
+                        {file && (
+                            <Box sx={{ display: "grid", justifyItems: "center", gap: 1 }}>
+                                <Box
+                                    component="img"
+                                    src={previewUrl}
+                                    alt="preview"
+                                    sx={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 1 }}
+                                />
+                                <Typography variant="caption" color="text.secondary">
+                                    {file.name} · {(file.size / (1024 * 1024)).toFixed(2)} MB
+                                </Typography>
+                            </Box>
+                        )}
+
+                        <TextField
+                            label="Açıklama (opsiyonel)"
+                            value={desc}
+                            onChange={(e) => setDesc(e.target.value)}
+                            multiline
+                            minRows={2}
+                        />
+
+                        {error && <Alert severity="error">{error}</Alert>}
+                    </Stack>
+                </DialogContent>
+
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={onClose} disabled={submitting} variant="text">
+                        Vazgeç
+                    </Button>
+                    <Button type="submit" disabled={submitting || !file} variant="contained">
+                        {submitting ? "Yükleniyor…" : "Yükle"}
+                    </Button>
+                </DialogActions>
+            </form>
+        </Dialog>
     );
 }

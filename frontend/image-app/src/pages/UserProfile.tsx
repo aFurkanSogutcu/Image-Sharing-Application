@@ -2,6 +2,24 @@ import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 
+import Grid from "@mui/material/Grid"; // v7 Grid (v2 API)
+import {
+    Container,
+    Typography,
+    Card,
+    CardContent,
+    CardActionArea,
+    Box,
+    Stack,
+    Button,
+    Alert,
+    CircularProgress,
+    Skeleton,
+    Avatar,
+    Divider,
+} from "@mui/material";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+
 type ImageItem = {
     id: number;
     url: string;
@@ -42,7 +60,7 @@ export default function UserProfile() {
                 `/images/${userId}?limit=20&offset=${initial ? 0 : nextOffset}`
             );
             if (initial) setItems(resp.items);
-            else setItems(prev => [...prev, ...resp.items]);
+            else setItems((prev) => [...prev, ...resp.items]);
             setOwner(resp.owner);
             setNextOffset(resp.page.next_offset ?? null);
         } catch (e: any) {
@@ -52,37 +70,121 @@ export default function UserProfile() {
         }
     }
 
-    useEffect(() => { setNextOffset(0); load(true); /* eslint-disable-next-line */ }, [userId]);
+    useEffect(() => {
+        setNextOffset(0);
+        load(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId]);
+
+    const isInitialLoading = loading && items.length === 0;
+    const initials =
+        (owner?.username?.[0] || (userId ? String(userId)[0] : "?")).toUpperCase();
 
     return (
-        <div style={{ padding: 16 }}>
-            <h2 style={{ marginBottom: 8 }}>Kullanıcı: @{owner?.username || userId}</h2>
+        <Container maxWidth="lg" sx={{ py: 3 }}>
+            {/* Başlık / kullanıcı kartı */}
+            <Card sx={{ mb: 2 }}>
+                <CardContent>
+                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                        <Avatar sx={{ width: 56, height: 56, fontWeight: 700 }}>{initials}</Avatar>
+                        <Stack spacing={0.4}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                                <PersonOutlineIcon fontSize="small" />
+                                <Typography variant="h6" fontWeight={800}>
+                                    Kullanıcı: @{owner?.username || userId}
+                                </Typography>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary">
+                                Toplam görsel: <b>{items.length}</b>
+                            </Typography>
+                        </Stack>
+                    </Stack>
+                </CardContent>
+                <Divider />
+            </Card>
 
             {error && (
-                <div style={{ color: "crimson", marginBottom: 12 }}>
-                    {error} <button onClick={() => load(true)}>Tekrar dene</button>
-                </div>
+                <Alert
+                    severity="error"
+                    sx={{ mb: 2 }}
+                    action={
+                        <Button color="inherit" size="small" onClick={() => load(true)}>
+                            Tekrar dene
+                        </Button>
+                    }
+                >
+                    {error}
+                </Alert>
             )}
 
-            {items.length === 0 && !loading && !error && (
-                <div style={{ opacity: 0.7 }}>Bu kullanıcının henüz resmi yok.</div>
+            {!isInitialLoading && items.length === 0 && !error && (
+                <Typography color="text.secondary" sx={{ py: 6, textAlign: "center" }}>
+                    Bu kullanıcının henüz resmi yok.
+                </Typography>
             )}
 
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
-                {items.map(img => (
-                    <div key={img.id} style={{ border: "1px solid #eee", borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-                        <div style={{ position: "relative", aspectRatio: "4/3", background: "#f4f4f4" }}>
-                            <img src={img.url} alt={img.description} style={{ width: "100%", height: "100%", objectFit: "cover" }} loading="lazy" />
-                        </div>
-                        <div style={{ padding: 10, fontSize: 14 }}>{img.description || <span style={{ opacity: 0.6 }}>Açıklama yok</span>}</div>
-                    </div>
-                ))}
-            </div>
+            {/* Görsel ızgarası */}
+            <Grid container spacing={2}>
+                {isInitialLoading
+                    ? Array.from({ length: 8 }).map((_, i) => (
+                        <Grid key={i} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                            <Card>
+                                <Skeleton variant="rectangular" sx={{ aspectRatio: "4 / 3" }} />
+                                <CardContent>
+                                    <Skeleton width="75%" />
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    ))
+                    : items.map((img) => (
+                        <Grid key={img.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                            <Card>
+                                <CardActionArea>
+                                    <Box
+                                        component="img"
+                                        src={img.url}
+                                        alt={img.description}
+                                        loading="lazy"
+                                        sx={{
+                                            width: "100%",
+                                            aspectRatio: "4 / 3",
+                                            objectFit: "cover",
+                                            display: "block",
+                                            bgcolor: "action.hover",
+                                        }}
+                                    />
+                                    <CardContent sx={{ py: 1.5 }}>
+                                        <Typography
+                                            variant="body2"
+                                            color={img.description ? "text.primary" : "text.secondary"}
+                                            noWrap
+                                            title={img.description || "Açıklama yok"}
+                                        >
+                                            {img.description || "Açıklama yok"}
+                                        </Typography>
+                                    </CardContent>
+                                </CardActionArea>
+                            </Card>
+                        </Grid>
+                    ))}
+            </Grid>
 
-            <div style={{ marginTop: 16 }}>
-                {nextOffset !== null && !loading && <button onClick={() => load(false)}>Daha Fazla</button>}
-                {loading && <span style={{ marginLeft: 8, opacity: 0.7 }}>Yükleniyor…</span>}
-            </div>
-        </div>
+            {/* Daha Fazla / Yükleniyor */}
+            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
+                {nextOffset !== null && !loading && items.length > 0 && (
+                    <Button onClick={() => load(false)} variant="outlined">
+                        Daha Fazla
+                    </Button>
+                )}
+                {loading && items.length > 0 && (
+                    <Stack direction="row" spacing={1} alignItems="center">
+                        <CircularProgress size={18} />
+                        <Typography variant="body2" color="text.secondary">
+                            Yükleniyor…
+                        </Typography>
+                    </Stack>
+                )}
+            </Stack>
+        </Container>
     );
 }
