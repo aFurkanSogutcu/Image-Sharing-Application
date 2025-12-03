@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_MB: int = 5      # opsiyonel
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env", 
         env_file_encoding="utf-8"
     )
 

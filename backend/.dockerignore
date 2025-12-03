@@ -1,0 +1,29 @@
+# Python cache
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+
+# Venv'ler (kökte olsa bile yazmak zararsız)
+.venv
+venv
+env
+ENV
+
+# Ortam dosyaları
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# Log / geçici şeyler
+*.log
+tmp
+cache
+
+# Docker ile ilgisiz dosyalar
+Dockerfile
+docker-compose.yml
+k8s

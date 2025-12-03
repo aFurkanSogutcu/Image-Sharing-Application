@@ -20,8 +20,8 @@ type FeedItem = {
 };
 
 type FeedResponse = {
-    items: FeedItem[];
-    page: {
+    items?: FeedItem[];
+    page?: {
         limit: number;
         offset: number;
         returned: number;
@@ -33,23 +33,35 @@ type FeedResponse = {
 
 export default function Home() {
     const nav = useNavigate();
+
     const [items, setItems] = useState<FeedItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setErr] = useState<string | null>(null);
     const [nextOffset, setNextOffset] = useState<number | null>(0);
 
     async function load(initial = false) {
+        // Aynı anda birden fazla istek atma + devamı yoksa dur
         if (loading || nextOffset === null) return;
+
         setLoading(true);
         setErr(null);
+
         try {
-            const resp = await apiFetch<FeedResponse>(`/images/feed?limit=20&offset=${initial ? 0 : nextOffset}`);
+            const resp = await apiFetch<FeedResponse>(
+                `/images/feed?limit=20&offset=${initial ? 0 : nextOffset}`
+            );
+
+            // items her zaman dizi olsun (null / undefined / yanlış response vs. olsa bile)
+            const newItems: FeedItem[] = Array.isArray(resp.items) ? resp.items : [];
+
             if (initial) {
-                setItems(resp.items);
+                setItems(newItems);
             } else {
-                setItems(prev => [...prev, ...resp.items]);
+                setItems(prev => [...prev, ...newItems]);
             }
-            setNextOffset(resp.page.next_offset ?? null);
+
+            const next = resp.page?.next_offset;
+            setNextOffset(typeof next === "number" ? next : null);
         } catch (e: any) {
             setErr(e?.message || "Liste alınamadı");
         } finally {
@@ -58,13 +70,20 @@ export default function Home() {
     }
 
     // İlk yük
-    useEffect(() => { load(true); /* eslint-disable-next-line */ }, []);
+    useEffect(() => {
+        load(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Upload sonrası feed’i sıfırla
     useEffect(() => {
-        function onUploaded() { setNextOffset(0); load(true); }
+        function onUploaded() {
+            setNextOffset(0);
+            load(true);
+        }
         window.addEventListener("image:uploaded", onUploaded as EventListener);
         return () => window.removeEventListener("image:uploaded", onUploaded as EventListener);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Silme olayı
@@ -80,7 +99,10 @@ export default function Home() {
         return () => window.removeEventListener("image:deleted", onDeleted as EventListener);
     }, []);
 
-    const isInitialLoading = loading && items.length === 0;
+    // items her ihtimale karşı dizi olsun
+    const safeItems: FeedItem[] = Array.isArray(items) ? items : [];
+
+    const isInitialLoading = loading && safeItems.length === 0;
 
     return (
         <Container maxWidth="lg" sx={{ py: 3 }}>
@@ -102,7 +124,7 @@ export default function Home() {
                 </Alert>
             )}
 
-            {!isInitialLoading && items.length === 0 && !error && (
+            {!isInitialLoading && safeItems.length === 0 && !error && (
                 <Stack
                     alignItems="center"
                     spacing={1.5}
@@ -127,7 +149,7 @@ export default function Home() {
                             </Card>
                         </Grid>
                     ))
-                    : items.map((it) => (
+                    : safeItems.map((it) => (
                         <Grid key={it.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
                             <Card sx={{ height: "100%" }}>
                                 <CardActionArea onClick={() => nav(`/images/${it.id}`)}>
@@ -183,12 +205,12 @@ export default function Home() {
 
             {/* Daha Fazla / Yükleniyor */}
             <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
-                {nextOffset !== null && !loading && items.length > 0 && (
+                {nextOffset !== null && !loading && safeItems.length > 0 && (
                     <Button onClick={() => load(false)} variant="outlined">
                         Daha Fazla
                     </Button>
                 )}
-                {loading && items.length > 0 && (
+                {loading && safeItems.length > 0 && (
                     <Stack direction="row" spacing={1} alignItems="center">
                         <CircularProgress size={18} />
                         <Typography variant="body2" color="text.secondary">Yükleniyor…</Typography>

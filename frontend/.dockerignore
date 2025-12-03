@@ -1,0 +1,24 @@
+# Node modülleri
+node_modules
+image-app/node_modules
+
+# Build output
+dist
+build
+
+# Env
+.env
+.env.*
+
+# Git
+.git
+.gitignore
+
+# Loglar
+npm-debug.log*
+yarn-error.log*
+
+# Docker ile ilgisiz şeyler
+Dockerfile
+docker-compose.yml
+k8s
