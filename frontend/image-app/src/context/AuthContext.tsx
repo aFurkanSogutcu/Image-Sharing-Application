@@ -27,23 +27,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState<boolean>(!!token);
 
-    // İlk yüklemede token varsa /me ile kullanıcıyı çek
     useEffect(() => {
-        let alive = true;
-        (async () => {
-            if (!token) { setUser(null); setLoading(false); return; }
-            try {
-                const me = await apiFetch<{ owner: User; items: unknown; page: unknown }>("/me", {}, token);
-                if (alive) setUser(me.owner);
-            } catch {
-                // token geçersizse temizle
-                if (alive) { localStorage.removeItem("access_token"); setToken(null); setUser(null); }
-            } finally {
-                if (alive) setLoading(false);
+    let alive = true;
+
+    (async () => {
+        if (!token) {
+            setUser(null);
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const me = await apiFetch<User>("/users/me", {}, token);
+            if (alive) setUser(me);
+        } catch {
+            if (alive) {
+                localStorage.removeItem("access_token");
+                setToken(null);
+                setUser(null);
             }
-        })();
-        return () => { alive = false; };
-    }, [token]);
+        } finally {
+            if (alive) setLoading(false);
+        }
+    })();
+
+    return () => { alive = false };
+}, [token]);
 
     async function login(username: string, password: string) {
         // /auth/token → form-encoded olmalı

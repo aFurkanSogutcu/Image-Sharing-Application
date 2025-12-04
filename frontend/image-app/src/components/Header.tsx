@@ -41,7 +41,7 @@ export default function Header() {
                             color: "text.primary",
                         }}
                     >
-                        ImageApp
+                        AISocial
                     </Typography>
 
                     <Box sx={{ flexGrow: 1 }} />
@@ -57,7 +57,7 @@ export default function Header() {
                     ) : user ? (
                         <Stack direction="row" spacing={1} alignItems="center">
                             <Button
-                                onClick={() => setOpen(true)}
+                                onClick={() => nav("/create")}
                                 startIcon={<CloudUploadIcon />}
                                 variant="contained"
                             >

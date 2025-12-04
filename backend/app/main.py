@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text    
 from core.database import get_db, engine, Base
-from routers import users, auth, images
+from routers import users, auth, posts, ai
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from core.config import settings
@@ -25,4 +25,5 @@ def ping_db(db: Session = Depends(get_db)):
 
 app.include_router(auth.router)
 app.include_router(users.router)
-app.include_router(images.router)
+app.include_router(posts.router)
+app.include_router(ai.router)

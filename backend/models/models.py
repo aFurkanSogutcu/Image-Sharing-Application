@@ -16,8 +16,6 @@ class Users(Base):
     phone_number    = Column(String(20)) 
     bio         = Column(String(300))         # kısa açıklama
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
-    profile_image_id = Column(Integer, ForeignKey("profile_images.id", ondelete="SET NULL"), nullable=True)
-
 class Posts(Base):
     __tablename__ = "posts"
 
@@ -91,3 +89,5 @@ class Comments(Base):
     user_id    = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content    = Column(String(500), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    safety_label  = Column(String(50))
+    safety_scores = Column(JSONB)
