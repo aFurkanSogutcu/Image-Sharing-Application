@@ -6,7 +6,8 @@ import { useAuth } from "./context/AuthContext";
 import Home from "./pages/Home";
 import MyProfile from "./pages/MyProfile";
 import UserProfile from "./pages/UserProfile";
-import CreatePost from "./components/CreatePost";
+import CreatePostPage from "./pages/CreatePost";
+import AiCreatePostPage from "./pages/AiCreatePost";
 
 function Protected({ children }: { children: React.JSX.Element }) {
   const { token, loading } = useAuth();
@@ -20,7 +21,8 @@ export default function App() {
       <Header />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/create" element={<CreatePost />} />
+        <Route path="/create" element={<CreatePostPage />} />
+        <Route path="/ai/create" element={<AiCreatePostPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         {/* Benim profilim (korumalı) */}

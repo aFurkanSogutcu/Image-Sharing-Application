@@ -18,7 +18,7 @@ def get_me(
     user = db.query(Users).filter(Users.id == current_user["id"]).first()
 
     return {
-        "id": user.id,
+        "id": user.id,  
         "username": user.username,
         "email": user.email,
         "first_name": user.first_name,
