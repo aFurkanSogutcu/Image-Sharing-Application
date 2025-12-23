@@ -21,5 +21,12 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8"
     )
 
+    CONTENT_SAFETY_ENDPOINT: str
+    CONTENT_SAFETY_KEY: str
+    CONTENT_SAFETY_TEXT_BLOCK_SEVERITY: int
+    CONTENT_SAFETY_TEXT_REVIEW_SEVERITY: int
+    CONTENT_SAFETY_IMAGE_BLOCK_SEVERITY: int
+    CONTENT_SAFETY_IMAGE_REVIEW_SEVERITY: int
+
 
 settings = Settings()

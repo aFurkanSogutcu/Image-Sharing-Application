@@ -1,190 +1,193 @@
-import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+import type { PostItem } from "../types/post";
+import { PostCard } from "../components/PostCard";
 
-import Grid from "@mui/material/Grid"; // v7 Grid (v2 API)
 import {
-    Container,
-    Typography,
-    Card,
-    CardContent,
-    CardActionArea,
-    Box,
-    Stack,
-    Button,
-    Alert,
-    CircularProgress,
-    Skeleton,
-    Avatar,
-    Divider,
+  Box,
+  Container,
+  Typography,
+  Stack,
+  Button,
+  Alert,
+  CircularProgress,
+  Avatar,
+  IconButton,
 } from "@mui/material";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
-type ImageItem = {
-    id: number;
-    url: string;
-    description: string;
-    created_at: string;
-    content_type?: string;
-    size_bytes?: number | null;
-};
-
-type UserImagesResponse = {
-    owner: { id: number; username: string };
-    items: ImageItem[];
-    page: {
-        limit: number;
-        offset: number;
-        returned: number;
-        total: number;
-        has_more: boolean;
-        next_offset: number | null;
-    };
-};
+type UserInfo = { id: number; username: string; first_name?: string; last_name?: string };
 
 export default function UserProfile() {
-    const params = useParams();
-    const userId = Number(params.id);
-    const [owner, setOwner] = useState<UserImagesResponse["owner"] | null>(null);
-    const [items, setItems] = useState<ImageItem[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setErr] = useState<string | null>(null);
-    const [nextOffset, setNextOffset] = useState<number | null>(0);
+  const { id } = useParams();
+  const userId = useMemo(() => Number(id), [id]);
 
-    async function load(initial = false) {
-        if (loading || nextOffset === null || !userId) return;
-        setLoading(true);
-        setErr(null);
-        try {
-            const resp = await apiFetch<UserImagesResponse>(
-                `/users/${userId}/images?limit=20&offset=${initial ? 0 : nextOffset}`
-            );
-            if (initial) setItems(resp.items);
-            else setItems((prev) => [...prev, ...resp.items]);
-            setOwner(resp.owner);
-            setNextOffset(resp.page.next_offset ?? null);
-        } catch (e: any) {
-            setErr(e?.message || "Profil yüklenemedi");
-        } finally {
-            setLoading(false);
-        }
+  const nav = useNavigate();
+  const location = useLocation();
+  const { token } = useAuth();
+
+  const [owner, setOwner] = useState<UserInfo | null>(null);
+  const [items, setItems] = useState<PostItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setErr] = useState<string | null>(null);
+
+  async function load() {
+    if (!userId || loading) return;
+
+    setLoading(true);
+    setErr(null);
+
+    try {
+      // 1) user info (username almak için)
+      const u = await apiFetch<UserInfo>(`/users/${userId}`, undefined, token);
+      setOwner(u);
+
+      // 2) posts
+      const resp = await apiFetch<{ items: PostItem[] }>(`/users/${userId}/posts?limit=30&offset=0`, undefined, token);
+      setItems(Array.isArray(resp.items) ? resp.items : []);
+    } catch (e: any) {
+      setErr(e?.message || "Profil yüklenemedi");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    useEffect(() => {
-        setNextOffset(0);
-        load(true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userId]);
+  useEffect(() => {
+    setOwner(null);
+    setItems([]);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, token]);
 
-    const isInitialLoading = loading && items.length === 0;
-    const initials =
-        (owner?.username?.[0] || (userId ? String(userId)[0] : "?")).toUpperCase();
+  const initials = (owner?.username?.[0] || "?").toUpperCase();
 
-    return (
-        <Container maxWidth="lg" sx={{ py: 3 }}>
-            {/* Başlık / kullanıcı kartı */}
-            <Card sx={{ mb: 2 }}>
-                <CardContent>
-                    <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-                        <Avatar sx={{ width: 56, height: 56, fontWeight: 700 }}>{initials}</Avatar>
-                        <Stack spacing={0.4}>
-                            <Stack direction="row" spacing={1} alignItems="center">
-                                <PersonOutlineIcon fontSize="small" />
-                                <Typography variant="h6" fontWeight={800}>
-                                    Kullanıcı: @{owner?.username || userId}
-                                </Typography>
-                            </Stack>
-                            <Typography variant="body2" color="text.secondary">
-                                Toplam görsel: <b>{items.length}</b>
-                            </Typography>
-                        </Stack>
-                    </Stack>
-                </CardContent>
-                <Divider />
-            </Card>
+  return (
+    <Box
+      sx={{
+        minHeight: "calc(100dvh - 64px)",
+        py: { xs: 2, md: 3 },
+        px: 2,
+        background:
+          "radial-gradient(1200px 650px at 20% 10%, rgba(99,102,241,.20), transparent 60%)," +
+          "radial-gradient(900px 520px at 80% 20%, rgba(34,197,94,.14), transparent 55%)," +
+          "linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(2,6,23,1) 100%)",
+      }}
+    >
+      <Container maxWidth="md">
+        <Box sx={{ maxWidth: 760, mx: "auto" }}>
+          {/* header */}
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+            <IconButton
+              onClick={() => nav(-1)}
+              sx={{
+                color: "rgba(255,255,255,.85)",
+                bgcolor: "rgba(255,255,255,.06)",
+                "&:hover": { bgcolor: "rgba(255,255,255,.10)" },
+              }}
+              aria-label="Geri"
+            >
+              <ArrowBackIcon />
+            </IconButton>
 
-            {error && (
-                <Alert
-                    severity="error"
-                    sx={{ mb: 2 }}
-                    action={
-                        <Button color="inherit" size="small" onClick={() => load(true)}>
-                            Tekrar dene
-                        </Button>
-                    }
-                >
-                    {error}
-                </Alert>
-            )}
+            <Typography variant="h5" sx={{ fontWeight: 950, color: "rgba(255,255,255,.92)" }}>
+              Profil
+            </Typography>
+          </Stack>
 
-            {!isInitialLoading && items.length === 0 && !error && (
-                <Typography color="text.secondary" sx={{ py: 6, textAlign: "center" }}>
-                    Bu kullanıcının henüz resmi yok.
-                </Typography>
-            )}
+          {/* user mini card */}
+          <Stack
+            direction="row"
+            spacing={2}
+            alignItems="center"
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 4,
+              border: "1px solid rgba(255,255,255,.10)",
+              backgroundColor: "rgba(255,255,255,.06)",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 20px 70px rgba(0,0,0,.35)",
+            }}
+          >
+            <Avatar
+              sx={{
+                width: 54,
+                height: 54,
+                fontWeight: 900,
+                bgcolor: "rgba(99,102,241,.35)",
+                color: "rgba(255,255,255,.92)",
+              }}
+            >
+              {initials}
+            </Avatar>
 
-            {/* Görsel ızgarası */}
-            <Grid container spacing={2}>
-                {isInitialLoading
-                    ? Array.from({ length: 8 }).map((_, i) => (
-                        <Grid key={i} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                            <Card>
-                                <Skeleton variant="rectangular" sx={{ aspectRatio: "4 / 3" }} />
-                                <CardContent>
-                                    <Skeleton width="75%" />
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                    ))
-                    : items.map((img) => (
-                        <Grid key={img.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-                            <Card>
-                                <CardActionArea>
-                                    <Box
-                                        component="img"
-                                        src={img.url}
-                                        alt={img.description}
-                                        loading="lazy"
-                                        sx={{
-                                            width: "100%",
-                                            aspectRatio: "4 / 3",
-                                            objectFit: "cover",
-                                            display: "block",
-                                            bgcolor: "action.hover",
-                                        }}
-                                    />
-                                    <CardContent sx={{ py: 1.5 }}>
-                                        <Typography
-                                            variant="body2"
-                                            color={img.description ? "text.primary" : "text.secondary"}
-                                            noWrap
-                                            title={img.description || "Açıklama yok"}
-                                        >
-                                            {img.description || "Açıklama yok"}
-                                        </Typography>
-                                    </CardContent>
-                                </CardActionArea>
-                            </Card>
-                        </Grid>
-                    ))}
-            </Grid>
-
-            {/* Daha Fazla / Yükleniyor */}
-            <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
-                {nextOffset !== null && !loading && items.length > 0 && (
-                    <Button onClick={() => load(false)} variant="outlined">
-                        Daha Fazla
-                    </Button>
-                )}
-                {loading && items.length > 0 && (
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <CircularProgress size={18} />
-                        <Typography variant="body2" color="text.secondary">
-                            Yükleniyor…
-                        </Typography>
-                    </Stack>
-                )}
+            <Stack spacing={0.2}>
+              <Typography sx={{ fontWeight: 950, color: "rgba(255,255,255,.92)" }}>
+                @{owner?.username || "kullanıcı"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,.65)" }}>
+                Paylaşımlar: <b style={{ color: "rgba(255,255,255,.92)" }}>{items.length}</b>
+              </Typography>
             </Stack>
-        </Container>
-    );
+          </Stack>
+
+          {error && (
+            <Alert
+              severity="error"
+              sx={{
+                mb: 2,
+                borderRadius: 3,
+                backgroundColor: "rgba(239,68,68,.12)",
+                color: "rgba(255,255,255,.92)",
+                border: "1px solid rgba(239,68,68,.35)",
+                "& .MuiAlert-icon": { color: "rgba(239,68,68,.95)" },
+              }}
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={load}
+                  sx={{ textTransform: "none", fontWeight: 900 }}
+                >
+                  Tekrar dene
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          )}
+
+          {loading && (
+            <Stack direction="row" spacing={1} justifyContent="center" sx={{ py: 3 }}>
+              <CircularProgress size={20} />
+              <Typography variant="body2" sx={{ color: "rgba(255,255,255,.70)" }}>
+                Yükleniyor…
+              </Typography>
+            </Stack>
+          )}
+
+          {!loading && !error && items.length === 0 && (
+            <Typography sx={{ py: 6, textAlign: "center", color: "rgba(255,255,255,.65)" }}>
+              Bu kullanıcının henüz paylaşımı yok.
+            </Typography>
+          )}
+
+          {/* posts */}
+          <Stack spacing={0} sx={{ borderRadius: 4, overflow: "hidden", border: "1px solid rgba(255,255,255,.10)" }}>
+            {items.map((it) => (
+              <PostCard
+                key={it.id}
+                post={it}
+                onOpen={() => nav(`/post/${it.id}`, { state: { backgroundLocation: location } })}
+                onOwnerClick={() => nav(`/user/${it.owner.id}`)}
+                onHashtagClick={(t) => nav(`/tag/${encodeURIComponent(t.replace("#", ""))}`)}
+              />
+            ))}
+          </Stack>
+        </Box>
+      </Container>
+    </Box>
+  );
 }

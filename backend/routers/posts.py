@@ -19,6 +19,7 @@ from models.models import (
 from .auth import get_current_user
 from pydantic import BaseModel
 from datetime import datetime
+from moderation.service import content_safety
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -148,28 +149,76 @@ async def create_post(
         raise HTTPException(status_code=400, detail="İçerik çok kısa")
 
     if len(images) > MAX_IMAGES_PER_POST:
-        raise HTTPException(status_code=400, detail=f"En fazla {MAX_IMAGES_PER_POST} resim ekleyebilirsin")
+        raise HTTPException(
+            status_code=400,
+            detail=f"En fazla {MAX_IMAGES_PER_POST} resim ekleyebilirsin",
+        )
 
     tags = _parse_hashtags(hashtags)  # ["ai", "fastapi"]...
 
     saved_files: list[Path] = []  # hata olursa silmek için
 
     try:
-        # ✅ tek transaction mantığı: önce post'u ekle (commit yok), id için flush
+        # ------------------------------------------------------------
+        # 1) Resimleri önce memory'de oku + validasyon (disk'e yazma yok)
+        # ------------------------------------------------------------
+        image_payloads: list[tuple[UploadFile, bytes]] = []
+
+        for file in images:
+            if file is None:
+                continue
+
+            if file.content_type not in ALLOWED_CONTENT_TYPES:
+                raise HTTPException(status_code=400, detail="Sadece jpg/png/webp kabul edilir")
+
+            data = await file.read()
+            size = len(data)
+
+            if size == 0:
+                raise HTTPException(status_code=400, detail="Boş dosya yüklenemez")
+            if size > MAX_IMAGE_BYTES:
+                raise HTTPException(status_code=413, detail="Resim çok büyük (max 5MB)")
+
+            image_payloads.append((file, data))
+
+        # ------------------------------------------------------------
+        # 2) Azure Content Safety (text + image)
+        # ------------------------------------------------------------
+        decision = content_safety.moderate(
+            text=content_str,
+            images_bytes=[b for (_f, b) in image_payloads],
+        )
+        print(decision)
+        # blocked -> DB'ye hiç yazma
+        if decision.decision == "blocked":
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Paylaşım uygunsuz bulundu ve engellendi.",
+                    "label": decision.label,
+                    "scores": decision.scores,
+                },
+            )
+
+        # ------------------------------------------------------------
+        # 3) Post'u oluştur (published veya review) -> id için flush
+        # ------------------------------------------------------------
         post = Posts(
             user_id=user["id"],
             content=content_str,
             source=source,
             generated_from_prompt=generated_from_prompt,
             model_name=model_name,
-            status="published",
-            safety_label=None,
-            safety_scores=None,
+            status=decision.decision,      # "published" | "review"
+            safety_label=decision.label,
+            safety_scores=decision.scores,
         )
         db.add(post)
         db.flush()  # post.id oluşur
 
-        # ---- hashtags: tek seferde var olanları çek, eksikleri oluştur ----
+        # ------------------------------------------------------------
+        # 4) Hashtags
+        # ------------------------------------------------------------
         if tags:
             existing_rows = (
                 db.query(Hashtags)
@@ -187,33 +236,14 @@ async def create_post(
                     db.flush()  # h.id
                 hashtag_ids.append(h.id)
 
-            # linkle
             for hid in hashtag_ids:
                 db.add(PostHashtags(post_id=post.id, hashtag_id=hid))
 
-        # ---- images: dosyaya yaz + PostImages kaydı ----
+        # ------------------------------------------------------------
+        # 5) Resimleri artık diske yaz + PostImages kaydı
+        # ------------------------------------------------------------
         image_urls: list[str] = []
-        for file in images:
-            if file is None:
-                continue
-
-            if file.content_type not in ALLOWED_CONTENT_TYPES:
-                raise HTTPException(status_code=400, detail="Sadece jpg/png/webp kabul edilir")
-
-            data = await file.read()
-            size = len(data)
-
-            if size == 0:
-                raise HTTPException(status_code=400, detail="Boş dosya yüklenemez")
-            if size > MAX_IMAGE_BYTES:
-                raise HTTPException(status_code=413, detail="Resim çok büyük (max 5MB)")
-
-            ext = {
-                "image/jpeg": ".jpg",
-                "image/png": ".png",
-                "image/webp": ".webp",
-            }[file.content_type]
-
+        for file, data in image_payloads:
             rel_path, full_path = _build_storage_path_from_content_type(file.content_type)
 
             full_path.write_bytes(data)
@@ -221,32 +251,39 @@ async def create_post(
 
             img = PostImages(
                 post_id=post.id,
-                stored_filename=rel_path,          # ✅ artık uploads/2025/12/...
+                stored_filename=rel_path,   # uploads/2025/12/...
                 content_type=file.content_type,
-                size_bytes=size,
+                size_bytes=len(data),
                 description=None,
             )
             db.add(img)
 
             image_urls.append(f"/media/{rel_path}")
 
-        # ✅ her şey OK => tek commit
+        # ------------------------------------------------------------
+        # 6) commit
+        # ------------------------------------------------------------
         db.commit()
         db.refresh(post)
-        # print("MEDIA_ROOT =", settings.MEDIA_ROOT)
-        # print("Saving to  =", str(full_path))
+
+        extra_msg = None
+        if post.status == "review":
+            extra_msg = "Paylaşım otomatik kontrolde şüpheli bulundu; incelemeye alındı."
+
         return {
             "id": post.id,
+            "status": post.status,              # ✅ yeni (istersen)
             "content": post.content,
             "created_at": post.created_at,
             "source": post.source,
             "image_urls": image_urls,
             "hashtags": [f"#{t}" for t in tags],
+            "safety_label": post.safety_label,  # ✅ yeni (istersen)
+            "message": extra_msg,
         }
 
     except HTTPException:
         db.rollback()
-        # Kaydedilen dosyaları sil
         for p in saved_files:
             try:
                 p.unlink(missing_ok=True)
@@ -262,6 +299,7 @@ async def create_post(
             except Exception:
                 pass
         raise HTTPException(status_code=500, detail=f"Post oluşturulamadı: {str(e)}")
+
 
 
 # ---------- FEED ----------
@@ -465,13 +503,33 @@ def create_comment(
     if len(text) < 3:
         raise HTTPException(status_code=400, detail="Yorum çok kısa")
 
+    # ------------------------------------------------------------
+    # ✅ Azure Content Safety: comment text kontrol
+    # (yorumda resim yok -> images_bytes=[])
+    # ------------------------------------------------------------
+    decision = content_safety.moderate(text=text, images_bytes=[])
+
+    if decision.decision == "blocked":
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Yorum uygunsuz bulundu ve engellendi.",
+                "label": decision.label,
+                "scores": decision.scores,
+            },
+        )
+
+    # "review" ise yorumu yayınlama, incelemeye al
+    # Not: Comments modelinde status var: published | blocked | review
+    comment_status = decision.decision  # published | review
+
     comment = Comments(
         post_id=post_id,
         user_id=user["id"],
         content=text,
-        status="published",
-        safety_label=None,
-        safety_scores=None,
+        status=comment_status,
+        safety_label=decision.label,
+        safety_scores=decision.scores,
     )
 
     db.add(comment)
@@ -480,13 +538,16 @@ def create_comment(
 
     owner_username = db.query(Users.username).filter(Users.id == user["id"]).scalar() or "unknown"
 
+    # Eğer review ise, istersen kullanıcıya farklı bir mesaj dönmek için
+    # CommentOut şeman bunu taşımıyor. Şimdilik aynı response'u dönüyoruz.
+    # Frontend'e "review" bilgisini vermek istersen CommentOut'a status alanı eklemen gerekir.
+
     return CommentOut(
         id=comment.id,
         content=comment.content,
         created_at=comment.created_at,
         owner=PostOwner(id=user["id"], username=owner_username),
     )
-
 
 @router.get("/{post_id}/comments", response_model=List[CommentOut])
 def list_comments(
@@ -521,3 +582,29 @@ def list_comments(
         )
         for c, username in rows
     ]
+
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(
+    post_id: int = FPath(..., ge=1),
+    user: user_dep = None,
+    db: db_dep = None,
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    post = db.query(Posts).filter(Posts.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post bulunamadı")
+
+    if post.user_id != user["id"]:
+        raise HTTPException(status_code=403, detail="Bu postu silemezsin")
+
+    # ilişkiler cascade değilse tek tek sil (güvenli yol)
+    db.query(Likes).filter(Likes.post_id == post_id).delete(synchronize_session=False)
+    db.query(Comments).filter(Comments.post_id == post_id).delete(synchronize_session=False)
+    db.query(PostHashtags).filter(PostHashtags.post_id == post_id).delete(synchronize_session=False)
+    db.query(PostImages).filter(PostImages.post_id == post_id).delete(synchronize_session=False)
+
+    db.delete(post)
+    db.commit()
+    return
