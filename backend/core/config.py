@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 
 class Settings(BaseSettings):
     # Database
@@ -7,9 +8,9 @@ class Settings(BaseSettings):
     # Security / JWT
     JWT_SECRET: str
     JWT_ALG: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 240   
 
-    MEDIA_ROOT: str = "/data"   # <-- BURADA!
+    MEDIA_ROOT: str = str(Path(__file__).resolve().parent.parent / "data")
     MAX_UPLOAD_MB: int = 5      # opsiyonel
 
     AZURE_API_KEY: str

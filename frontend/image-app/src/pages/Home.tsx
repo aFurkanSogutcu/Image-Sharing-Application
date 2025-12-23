@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import {
   Container,
@@ -24,6 +24,7 @@ type PostsFeedResponse = {
 
 export default function Home() {
   const nav = useNavigate();
+  const location = useLocation();
   const { token } = useAuth();
 
   const [posts, setPosts] = useState<PostItem[]>([]);
@@ -60,22 +61,39 @@ export default function Home() {
   const isInitialLoading = loading && safeItems.length === 0;
 
   // Basit local like toggle (backend bağlayana kadar)
-  function toggleLikeLocally(postId: number) {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === postId
-          ? {
-              ...p,
-              liked_by_me: !p.liked_by_me,
-              like_count: (p.like_count ?? 0) + (p.liked_by_me ? -1 : 1),
-            }
-          : p
-      )
-    );
+  async function toggleLike(postId: number) {
+    try {
+      const resp = await apiFetch<{ post_id: number; liked: boolean; like_count: number }>(
+        `/posts/${postId}/like-toggle`,
+        { method: "POST" },
+        token
+      );
+
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, liked_by_me: resp.liked, like_count: resp.like_count }
+            : p
+        )
+      );
+    } catch (e: any) {
+      setErr(e?.message || "Beğeni güncellenemedi");
+    }
   }
 
   return (
-    <Container maxWidth="sm" sx={{ py: 2, borderLeft: 1, borderRight: 1, borderColor: "divider", minHeight: "100vh" }}>
+    <Container
+      maxWidth={false}
+      sx={{
+        py: 2,
+        minHeight: "100vh",
+        borderLeft: 1,
+        borderRight: 1,
+        borderColor: "divider",
+        maxWidth: 680,   // ✅ sm’den geniş, md’den dar
+        mx: "auto",
+      }}
+    >
       <Typography
         variant="h6"
         fontWeight={700}
@@ -130,10 +148,19 @@ export default function Home() {
           <PostCard
             key={it.id}
             post={it}
-            onOpen={() => nav(`/post/${it.id}`)}
+            onOpen={() =>
+              nav(`/post/${it.id}`, {
+                state: { backgroundLocation: location }, // ✅ kritik
+              })
+            }
             onOwnerClick={() => nav(`/user/${it.owner.id}`)}
-            onLike={() => toggleLikeLocally(it.id)}
-            onComment={() => nav(`/post/${it.id}#comments`)}
+            onLike={() => toggleLike(it.id)}
+            onHashtagClick={(tag) => nav(`/tag/${encodeURIComponent(tag)}`)}
+            onComment={() =>
+              nav(`/post/${it.id}`, {
+                state: { backgroundLocation: location },
+              })
+            }
           />
         ))}
       </Stack>

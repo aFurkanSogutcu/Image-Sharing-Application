@@ -84,7 +84,7 @@ export default function MyProfile() {
         setErr(null);
         try {
             const resp = await apiFetch<MeResponse>(
-                `/me?limit=20&offset=${initial ? 0 : nextOffset}`,
+                `/users/me?limit=20&offset=${initial ? 0 : nextOffset}`,
                 {},
                 token
             );
@@ -107,7 +107,7 @@ export default function MyProfile() {
     async function onDelete(id: number) {
         if (!token) return;
         try {
-            await apiFetch<void>(`/${id}`, { method: "DELETE" }, token);
+            await apiFetch<void>(`/images/${id}`, { method: "DELETE" }, token);
             setItems((prev) => prev.filter((x) => x.id !== id));
             window.dispatchEvent(new CustomEvent("image:deleted", { detail: { id } }));
         } catch (e: any) {

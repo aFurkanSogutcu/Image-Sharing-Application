@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, Location } from "react-router-dom";
 import Header from "./components/Header";
 import LoginPage from "./pages/Login";
 import RegisterPage from "./pages/Register";
@@ -8,6 +8,8 @@ import MyProfile from "./pages/MyProfile";
 import UserProfile from "./pages/UserProfile";
 import CreatePostPage from "./pages/CreatePost";
 import AiCreatePostPage from "./pages/AiCreatePost";
+import HashtagPage from "./pages/Hashtag";
+import PostModal from "./pages/PostModal";
 
 function Protected({ children }: { children: React.JSX.Element }) {
   const { token, loading } = useAuth();
@@ -15,16 +17,28 @@ function Protected({ children }: { children: React.JSX.Element }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
+type LocationState = {
+  backgroundLocation?: Location;
+};
+
 export default function App() {
+  const location = useLocation();
+  const state = location.state as LocationState | null;
+  const backgroundLocation = state?.backgroundLocation;
+
   return (
     <>
       <Header />
-      <Routes>
+
+      {/* ✅ Arka plan route'ları: modal açıldığında Home/Tag/User sayfası arkada kalır */}
+      <Routes location={backgroundLocation || location}>
         <Route path="/" element={<Home />} />
         <Route path="/create" element={<CreatePostPage />} />
         <Route path="/ai/create" element={<AiCreatePostPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/tag/:tag" element={<HashtagPage />} />
+
         {/* Benim profilim (korumalı) */}
         <Route
           path="/profile"
@@ -34,10 +48,19 @@ export default function App() {
             </Protected>
           }
         />
+
         {/* Başkasının profili (public) */}
         <Route path="/user/:id" element={<UserProfile />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* ✅ Modal route: sadece background varsa dialog olarak aç */}
+      {backgroundLocation && (
+        <Routes>
+          <Route path="/post/:id" element={<PostModal />} />
+        </Routes>
+      )}
     </>
   );
 }

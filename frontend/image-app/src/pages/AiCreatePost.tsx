@@ -68,11 +68,36 @@ export default function AiCreatePostPage() {
     }
   }
 
+  function appendHashtagsToContent(content: string, tags: string[]): string {
+  if (!tags?.length) return content;
+
+  const normalized = tags
+    .map((t) => t.replace(/^#/, "").trim())
+    .filter(Boolean);
+
+  if (!normalized.length) return content;
+
+  const hashtagLine = normalized.map((t) => `#${t}`).join(" ");
+
+  // Zaten metinde varsa ekleme (basit kontrol)
+  const existing = new Set(
+    (content.match(/#([0-9A-Za-z_ğüşöçıİĞÜŞÖÇ]+)/g) || []).map((x) => x.toLowerCase())
+  );
+  const toAdd = normalized
+    .map((t) => `#${t}`.toLowerCase())
+    .filter((h) => !existing.has(h));
+
+  if (!toAdd.length) return content;
+
+  return `${content.trim()}\n\n${toAdd.join(" ")}`.trim();
+}
+
   function sendToComposer() {
+    const composed = appendHashtagsToContent(resultContent, resultHashtags);
+
     nav("/create", {
       state: {
-        content: resultContent,
-        hashtags: resultHashtags,
+        content: composed,
       },
     });
   }

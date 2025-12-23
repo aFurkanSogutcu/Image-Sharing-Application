@@ -1,6 +1,7 @@
 // src/lib/api.ts
 
 const BASE = "/api"; // ÖNEMLİ: burada sadece /api kullan
+export const MEDIA_BASE = ""; 
 
 export async function apiFetch<T>(
   path: string,

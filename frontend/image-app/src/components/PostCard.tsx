@@ -1,5 +1,5 @@
 // src/components/PostCard.tsx
-import { MouseEvent } from "react";
+import { MouseEvent, useState } from "react";
 import {
   Box,
   Stack,
@@ -21,7 +21,58 @@ type PostCardProps = {
   onOwnerClick?: () => void;
   onLike?: () => void;
   onComment?: () => void;
+  onHashtagClick?: (tag: string) => void; // ✅
 };
+
+function renderContentWithHashtags(
+  text: string,
+  onHashtagClick?: (tag: string) => void,
+  stop?: (e: any) => void
+) {
+  // #tag yakala (Türkçe karakter destekli)
+  const re = /#([0-9A-Za-z_ğüşöçıİĞÜŞÖÇ]+)/g;
+
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = re.exec(text)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const tagRaw = match[0];      // "#ai"
+    const tagValue = match[1];    // "ai"
+
+    // match öncesi normal metin
+    if (start > lastIndex) {
+      nodes.push(<span key={`t-${key++}`}>{text.slice(lastIndex, start)}</span>);
+    }
+
+    // hashtag kısmı clickable
+    nodes.push(
+      <Typography
+        key={`h-${key++}`}
+        component="span"
+        sx={{ color: "primary.main", cursor: "pointer", fontWeight: 600 }}
+        onClick={(e) => {
+          stop?.(e);
+          onHashtagClick?.(tagValue); // "#"siz gönderiyoruz: ai
+        }}
+      >
+        {tagRaw}
+      </Typography>
+    );
+
+    lastIndex = end;
+  }
+
+  // sondaki metin
+  if (lastIndex < text.length) {
+    nodes.push(<span key={`t-${key++}`}>{text.slice(lastIndex)}</span>);
+  }
+
+  return nodes;
+}
 
 export function PostCard({
   post,
@@ -29,15 +80,14 @@ export function PostCard({
   onOwnerClick,
   onLike,
   onComment,
+  onHashtagClick,
 }: PostCardProps) {
   const theme = useTheme();
 
   const likeCount = post.like_count ?? 0;
   const commentCount = post.comment_count ?? 0;
 
-  const handleRootClick = () => {
-    onOpen?.();
-  };
+  const handleRootClick = () => onOpen?.();
 
   const stop = (e: MouseEvent) => {
     e.stopPropagation();
@@ -60,11 +110,13 @@ export function PostCard({
   };
 
   const createdLabel = new Date(post.created_at).toLocaleString();
-
-  // Basit avatar: username'in ilk harfi
   const avatarLetter = post.owner.username?.[0]?.toUpperCase() ?? "?";
 
-  const hasImage = Boolean(post.image_url);
+  const images = Array.isArray(post.image_urls) ? post.image_urls : [];
+  const hasImage = images.length > 0;
+  const [fit, setFit] = useState<"cover" | "contain">("cover");
+
+  const tags = Array.isArray(post.hashtags) ? post.hashtags : [];
 
   return (
     <Box
@@ -74,13 +126,10 @@ export function PostCard({
         px: 2,
         py: 1.5,
         cursor: onOpen ? "pointer" : "default",
-        "&:hover": {
-          backgroundColor: theme.palette.action.hover,
-        },
+        "&:hover": { backgroundColor: theme.palette.action.hover },
       }}
     >
       <Stack direction="row" spacing={1.5} alignItems="flex-start">
-        {/* Avatar + sol kolon */}
         <Avatar
           sx={{ width: 40, height: 40, cursor: "pointer" }}
           onClick={handleOwnerClick}
@@ -88,9 +137,7 @@ export function PostCard({
           {avatarLetter}
         </Avatar>
 
-        {/* Sağ taraf (içerik) */}
         <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
-          {/* Üst satır: kullanıcı adı + tarih */}
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography
               variant="subtitle2"
@@ -104,42 +151,60 @@ export function PostCard({
             </Typography>
           </Stack>
 
-          {/* İçerik */}
           <Typography
             variant="body1"
             sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}
           >
-            {post.content}
+            {renderContentWithHashtags(post.content || "", onHashtagClick, stop)}
           </Typography>
 
-          {/* Opsiyonel resim */}
+          {/* ✅ Görsel */}
           {hasImage && (
-            <Box
-              sx={{
-                mt: 1.5,
-                borderRadius: 2,
-                overflow: "hidden",
-                border: `1px solid ${theme.palette.divider}`,
-                maxHeight: 400, // Twitter'daki gibi belli bir yükseklikle sınırlı
-              }}
-            >
-              <Box
-                component="img"
-                src={post.image_url!}
-                alt="Post image"
-                sx={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  display: "block",
-                }}
-              />
-            </Box>
-          )}
+  <Box
+    sx={{
+      mt: 1.2,
+      borderRadius: 2,
+      overflow: "hidden",
+      border: `1px solid ${theme.palette.divider}`,
+      width: "100%",
+      aspectRatio: "16 / 9",
+      maxHeight: 320,
+      backgroundColor: "action.hover", // contain olduğunda boşluk yumuşak dursun
+    }}
+  >
+    <Box
+      component="img"
+      src={images[0]}
+      alt="Post image"
+      loading="lazy"
+      onLoad={(e) => {
+        const img = e.currentTarget as HTMLImageElement;
+        const w = img.naturalWidth || 1;
+        const h = img.naturalHeight || 1;
+        const r = w / h;
 
-          {/* Resimsiz gönderi için küçük görsel ipucu (isteğe bağlı) */}
+        // Çok dikey ya da çok yatay => contain (daha az kırpma)
+        // r < 0.8 => dikey, r > 1.9 => çok yatay
+        setFit(r < 0.8 || r > 1.9 ? "contain" : "cover");
+      }}
+      sx={{
+        width: "100%",
+        height: "100%",
+        objectFit: fit,         // ✅ cover/contain otomatik
+        display: "block",
+      }}
+    />
+  </Box>
+)}
+
+
           {!hasImage && (
-            <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.5 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.5}
+              sx={{ mt: 0.5 }}
+            >
               <ImageOutlinedIcon fontSize="small" sx={{ opacity: 0.4 }} />
               <Typography variant="caption" color="text.secondary">
                 Görselsiz gönderi
@@ -147,7 +212,6 @@ export function PostCard({
             </Stack>
           )}
 
-          {/* Alt aksiyon satırı: Like, Comment */}
           <Stack
             direction="row"
             alignItems="center"
@@ -155,11 +219,7 @@ export function PostCard({
             sx={{ mt: 1 }}
           >
             <Stack direction="row" alignItems="center" spacing={0.5}>
-              <IconButton
-                size="small"
-                onClick={handleLikeClick}
-                sx={{ p: 0.5 }}
-              >
+              <IconButton size="small" onClick={handleLikeClick} sx={{ p: 0.5 }}>
                 {post.liked_by_me ? (
                   <FavoriteIcon fontSize="small" color="error" />
                 ) : (

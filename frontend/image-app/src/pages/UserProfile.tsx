@@ -57,7 +57,7 @@ export default function UserProfile() {
         setErr(null);
         try {
             const resp = await apiFetch<UserImagesResponse>(
-                `/images/${userId}?limit=20&offset=${initial ? 0 : nextOffset}`
+                `/users/${userId}/images?limit=20&offset=${initial ? 0 : nextOffset}`
             );
             if (initial) setItems(resp.items);
             else setItems((prev) => [...prev, ...resp.items]);
