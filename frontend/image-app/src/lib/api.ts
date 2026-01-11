@@ -1,8 +1,9 @@
 // src/lib/api.ts
 
-const BASE = "/api";
-export const MEDIA_BASE = "";
-
+// const BASE = "/api"; vite proxy
+const BASE = import.meta.env.VITE_API_BASE_URL; // CORS
+export const MEDIA_BASE = import.meta.env.VITE_API_BASE_URL;
+console.log("API BASE =", BASE);
 function normalizeErrorMessage(data: any, status: number): string {
   if (!data) return `HTTP ${status}`;
 

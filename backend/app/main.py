@@ -7,9 +7,21 @@ from routers import users, auth, posts, ai, hashtags
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from core.config import settings
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",   # dev
+        "http://localhost:5174",  
+        # prod domain 
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # media klasörü oluştur + servis et
 MEDIA_DIR = Path(settings.MEDIA_ROOT)
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)

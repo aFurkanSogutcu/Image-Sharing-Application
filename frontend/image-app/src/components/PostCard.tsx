@@ -7,6 +7,7 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 
 import type { PostItem } from "../types/post";
+import { MEDIA_BASE } from "../lib/api";
 
 type PostCardProps = {
   post: PostItem;
@@ -191,7 +192,11 @@ export function PostCard({
             >
               <Box
                 component="img"
-                src={images[0]}
+                src={
+                  images[0].startsWith("http")
+                    ? images[0]
+                    : `${MEDIA_BASE}${images[0]}`
+                }
                 alt="Post image"
                 loading="lazy"
                 onLoad={(e) => {

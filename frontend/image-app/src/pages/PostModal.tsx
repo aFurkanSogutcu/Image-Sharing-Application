@@ -18,6 +18,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import { apiFetch } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { MEDIA_BASE } from "../lib/api";
 
 type PostDetail = {
   id: number;
@@ -119,7 +120,13 @@ export default function PostModal() {
     }
   }
 
-  const imgSrc = post?.image_urls?.[0];
+  // const imgSrc = post?.image_urls?.[0]; vite proxy
+  const rawImg = post?.image_urls?.[0];
+  const imgSrc = rawImg
+    ? rawImg.startsWith("http")
+      ? rawImg
+      : `${MEDIA_BASE}${rawImg}`
+    : undefined;
 
   const paperSx = {
     borderRadius: 4,

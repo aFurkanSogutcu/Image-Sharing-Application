@@ -78,3 +78,4 @@ class AzureContentSafetyService:
 
 
 content_safety = AzureContentSafetyService()
+    
